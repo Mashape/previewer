@@ -22,13 +22,13 @@ sudo apt-get install docker-ce
 sudo usermod -aG docker ubuntu
 ```
 
-3. Install docker-compose per
+4. Install docker-compose per
 ```
 sudo curl -o /usr/local/bin/docker-compose -L "https://github.com/docker/compose/releases/download/1.15.0/docker-compose-$(uname -s)-$(uname -m)"
 sudo chmod +x /usr/local/bin/docker-compose
 ```
 
-4. Install previewer
+5. Install previewer
 ```
 sudo apt-get install -y git make python-virtualenv
 git clone https://github.com/Mashape/previewer.git
@@ -45,10 +45,10 @@ sudo journalctl -u previewer  #view the logs
 ssh -T git@github.com #verify we can access github
 ```
 
-5. Setup a github webhook for http://IP:5000/hooks with content type `application/json` #TODO elastic IP
-6. Push all events #TODO more restrictive
-7. Make sure the ping event gets a pong response
-8. Make a test PR in the repository (known bug the open pr webhook will timeout)
-9. docker ps #should see proxy-nginx and the docker-compose containers running
-10. create an ELB. Use port 5000 as the health check and send traffic from 80 to 8111
-11. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
+6. Setup a github webhook for http://IP:5000/hooks with content type `application/json` #TODO elastic IP
+7. Push all events #TODO more restrictive
+8. Make sure the ping event gets a pong response
+9. Make a test PR in the repository (known bug the open pr webhook will timeout)
+10. docker ps #should see proxy-nginx and the docker-compose containers running
+11. create an ELB. Use port 5000 as the health check and send traffic from 80 to 8111
+12. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
