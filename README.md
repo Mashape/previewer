@@ -52,3 +52,8 @@ ssh -T git@github.com #verify we can access github
 10. docker ps #should see proxy-nginx and the docker-compose containers running
 11. create an ELB. Use port 5000 as the health check and send traffic from 80 to 8111
 12. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
+
+## Adding Your IP
+
+Login to 705622348339.signin.aws.amazon.com/console and edit the security group sg-79786d09. Be sure to note
+in the description `who - where` the IP exception is for
