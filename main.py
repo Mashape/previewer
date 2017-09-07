@@ -1,5 +1,4 @@
-import os
-import subprocess
+import os, re, subprocess
 from subprocess import PIPE
 from datetime import datetime
 from compose.cli.command import get_project
@@ -10,6 +9,8 @@ from git import Repo
 app = Flask(__name__)
 app.config['VALIDATE_SIGNATURE'] = False
 app.config['GITHUB_WEBHOOKS_KEY'] = 'my_secret_key'
+
+safeRegexPattern = re.compile('[\W_]+')
 
 @app.route("/")
 def hello():
@@ -24,7 +25,8 @@ def ping(data, guid):
 @hooks.hook('pull_request')
 def pull_request(data, guid):
     if data['action'] == 'opened' or data['action'] == 'reopened':
-        workingDirectory = '/tmp/' + str(data['pull_request']['id']) #warning might need to sanitize this
+        pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
+        workingDirectory = '/tmp/' + pullRequestId
         prNumber = data['number']
     
         checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
@@ -32,20 +34,28 @@ def pull_request(data, guid):
         dockerHelper = DockerHelper()
         dockerHelper.clean_old_images()
         dockerHelper.pull_container_image('jwilder/nginx-proxy')
-        dockerHelper.create_network(str(data['pull_request']['id']) + '_default')
+        dockerHelper.create_network(pullRequestId + '_default')
         containerArgs = ["-v", "/var/run/docker.sock:/tmp/docker.sock:ro", "-p", "8111:80"]
         dockerHelper.run_container('nginx-proxy', 'jwilder/nginx-proxy', containerArgs)
+        dockerHelper.container_join_network(pullRequestId + '_default', 'nginx-proxy')
         
+        subDomain = '.' + data['repository']['name'] + '.mashape.com'
+        branchName = safeRegexPattern.sub('', str(data['pull_request']['head']['ref']))
+        os.environ['KONG_VIRTUAL_HOST'] = branchName + '_kong' + subDomain
+        os.environ['KONG_ADMIN_VIRTUAL_HOST'] = branchName + subDomain
         project = get_project(workingDirectory)
         project.build()
         project.up()
+        
+        return 'done - http://' + branchName + subDomain
 
 def checkout_pr_merge(sshUrl, workingDirectory, prNumber):
     if os.path.isdir(workingDirectory) == True:
         repo = Repo(workingDirectory)
+        repo.remotes.origin.fetch()
     else:
         repo = Repo.clone_from(sshUrl, workingDirectory, None, env={'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa' })
-    repo.remotes.origin.fetch('+refs/pull/*:refs/heads/pull/*')
+        repo.remotes.origin.fetch('+refs/pull/*:refs/heads/pull/*')
     git = repo.git
     git.checkout('pull/' + str(prNumber) + '/merge')
 
@@ -81,6 +91,10 @@ class DockerHelper:
 
     def create_network(self, networkName):
         command = ["docker", "network", "create", networkName]
+        self.run_command(command)
+
+    def container_join_network(self, networkName, containerName):
+        command = ["docker", "network", "connect", networkName, containerName]
         self.run_command(command)
 
     def pull_container_image(self, containerImage):
