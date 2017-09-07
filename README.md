@@ -53,6 +53,15 @@ ssh -T git@github.com #verify we can access github
 11. create an ELB. Use port 5000 as the health check and send traffic from 80 to 8111
 12. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
 
+## Adding Your Project to Previewer
+
+1. Make sure my github user (hutchic) can clone the repository
+2. Setup a github webhook for http://IP:5000/hooks with content type application/json #TODO elastic IP
+3. Push all events #TODO more restrictive
+4. Make sure the ping event gets a pong response
+5. Make a test PR in the repository (known bug the open pr webhook will timeout)
+6. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
+
 ## Adding Your IP
 
 Login to 705622348339.signin.aws.amazon.com/console and edit the security group sg-79786d09. Be sure to note
