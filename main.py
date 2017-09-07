@@ -1,4 +1,4 @@
-import os, re, subprocess
+import os, re, subprocess, shutil
 from subprocess import PIPE
 from datetime import datetime
 from compose.cli.command import get_project
@@ -24,14 +24,21 @@ def ping(data, guid):
 
 @hooks.hook('pull_request')
 def pull_request(data, guid):
-    if data['action'] == 'opened' or data['action'] == 'reopened':
-        pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
-        workingDirectory = '/tmp/' + pullRequestId
-        prNumber = data['number']
+    pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
+    workingDirectory = '/tmp/' + pullRequestId
+    prNumber = data['number']
+    dockerHelper = DockerHelper()
+
+    if data['action'] == 'closed':
+        project = get_project(workingDirectory)
+        project.kill()
+        project.remove_stopped()
+        shutil.rmtree(workingDirectory)
+        dockerHelper.container_disconnect_network(pullRequestId + '_default', 'nginx-proxy')
     
+    elif data['action'] == 'opened' or data['action'] == 'reopened':    
         checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
-          
-        dockerHelper = DockerHelper()
+        
         dockerHelper.clean_old_images()
         dockerHelper.pull_container_image('jwilder/nginx-proxy')
         dockerHelper.create_network(pullRequestId + '_default')
@@ -47,7 +54,8 @@ def pull_request(data, guid):
         project.build()
         project.up()
         
-        return 'done - http://' + branchName + subDomain
+    dockerHelper.prune_all()
+    return 'done'
 
 def checkout_pr_merge(sshUrl, workingDirectory, prNumber):
     if os.path.isdir(workingDirectory) == True:
@@ -72,6 +80,10 @@ class NiceLogger:
 class DockerHelper:
     niceLogger = NiceLogger()
 
+    def prune_all(self):
+        command = ["docker", "system", "prune", "--force"]
+        self.run_command(command)
+
     def clean_old_images(self):
         command = ["docker", "images", "-q", "-f", "dangling=true"]
         image_ids = self.run_command(command)
@@ -91,6 +103,10 @@ class DockerHelper:
 
     def create_network(self, networkName):
         command = ["docker", "network", "create", networkName]
+        self.run_command(command)
+
+    def container_disconnect_network(self, networkName, containerName):
+        command = ["docker", "network", "disconnect", networkName, containerName]
         self.run_command(command)
 
     def container_join_network(self, networkName, containerName):
