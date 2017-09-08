@@ -29,14 +29,15 @@ def pull_request(data, guid):
     prNumber = data['number']
     dockerHelper = DockerHelper()
 
-    if data['action'] == 'closed':
-        project = get_project(workingDirectory)
-        project.kill()
-        project.remove_stopped()
-        shutil.rmtree(workingDirectory)
+    if data['action'] == 'closed' or data['action'] == 'synchronize':
+        if os.path.isdir(workingDirectory) == True:
+            project = get_project(workingDirectory)
+            project.kill()
+            project.remove_stopped()
+            shutil.rmtree(workingDirectory)
         dockerHelper.container_disconnect_network(pullRequestId + '_default', 'nginx-proxy')
     
-    elif data['action'] == 'opened' or data['action'] == 'reopened':    
+    if data['action'] == 'opened' or data['action'] == 'reopened' or data['action'] == 'synchronize':
         checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
         
         dockerHelper.clean_old_images()
