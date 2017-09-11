@@ -76,9 +76,6 @@ def checkout_pr_merge(sshUrl, workingDirectory, prNumber):
     git = repo.git
     git.checkout('pull/' + str(prNumber) + '/merge')
 
-def run_nginx_proxy():
-    dockerHelper = DockerHelper()
-
 
 class NiceLogger:
     def log(self, message):
