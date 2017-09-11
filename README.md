@@ -37,6 +37,7 @@ vi main.py #change the GITHUB_WEBHOOKS_KEY
 make setup
 place a ssh private key with access to github at /home/ubuntu/.ssh/id_rsa
 place the previewer.service unit file in /etc/systemd/system/previewer.system
+edit the previewer.system file and update the two changeme env variables
 sudo systemctl daemon-reload
 sudo systemctl enable previewer
 sudo systemctl start previewer

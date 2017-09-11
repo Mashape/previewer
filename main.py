@@ -5,10 +5,11 @@ from compose.cli.command import get_project
 from flask import Flask
 from flask_hookserver import Hooks
 from git import Repo
+from github3 import login
 
 app = Flask(__name__)
 app.config['VALIDATE_SIGNATURE'] = False
-app.config['GITHUB_WEBHOOKS_KEY'] = 'my_secret_key'
+app.config['GITHUB_WEBHOOKS_KEY'] = os.environ['GITHUB_WEBHOOKS_KEY']
 
 safeRegexPattern = re.compile('[\W_]+')
 
@@ -55,6 +56,13 @@ def pull_request(data, guid):
         project.build()
         project.up()
         
+        if data['action'] != 'synchronize':
+            gh = login(token=os.environ['GITHUB_TOKEN'])
+            issue = gh.issue(data['organization']['login'],
+              data['pull_request']['head']['repo']['name'],
+              data['number'])
+            issue.create_comment('The preview environment has been created http://' + branchName + subDomain)
+    
     dockerHelper.prune_all()
     return 'done'
 
