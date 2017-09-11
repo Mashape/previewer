@@ -5,4 +5,4 @@ setup:
 	.venv/bin/pip install -r requirements.txt
 
 run:
-	source .venv/bin/activate && FLASK_APP=main.py flask run --host=0.0.0.0
+	FLASK_APP=main.py .venv/bin/flask run --host=0.0.0.0
