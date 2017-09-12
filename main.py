@@ -28,6 +28,8 @@ def pull_request(data, guid):
     pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
     workingDirectory = '/tmp/' + pullRequestId
     prNumber = data['number']
+    subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+    branchName = safeRegexPattern.sub('', str(data['pull_request']['head']['ref']))
     dockerHelper = DockerHelper()
 
     if data['action'] == 'closed' or data['action'] == 'synchronize':
@@ -55,8 +57,6 @@ def pull_request(data, guid):
         dockerHelper.run_container('nginx-proxy', 'jwilder/nginx-proxy', containerArgs)
         dockerHelper.container_join_network(pullRequestId + '_default', 'nginx-proxy')
         
-        subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
-        branchName = safeRegexPattern.sub('', str(data['pull_request']['head']['ref']))
         os.environ['KONG_VIRTUAL_HOST'] = branchName + '_kong' + subDomain
         os.environ['KONG_ADMIN_VIRTUAL_HOST'] = branchName + subDomain
         project = get_project(workingDirectory)
