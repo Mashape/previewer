@@ -38,6 +38,13 @@ def pull_request(data, guid):
             shutil.rmtree(workingDirectory)
         dockerHelper.container_disconnect_network(pullRequestId + '_default', 'nginx-proxy')
     
+    if data['action'] == 'opened' or data['action'] == 'reopened'
+        gh = login(token=os.environ['GITHUB_TOKEN'])
+        issue = gh.issue(data['organization']['login'],
+          data['pull_request']['head']['repo']['name'],
+          data['number'])
+        issue.create_comment('The preview environment: http://' + branchName + subDomain)
+    
     if data['action'] == 'opened' or data['action'] == 'reopened' or data['action'] == 'synchronize':
         checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
         
@@ -55,14 +62,6 @@ def pull_request(data, guid):
         project = get_project(workingDirectory)
         project.build()
         project.up(detached=True)
-        
-        if data['action'] != 'synchronize':
-            gh = login(token=os.environ['GITHUB_TOKEN'])
-            issue = gh.issue(data['organization']['login'],
-              data['pull_request']['head']['repo']['name'],
-              data['number'])
-            issue.create_comment('The preview environment has been created http://' + branchName + subDomain)
-    
     dockerHelper.prune_all()
     return 'done'
 
