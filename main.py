@@ -54,7 +54,7 @@ def pull_request(data, guid):
         os.environ['KONG_ADMIN_VIRTUAL_HOST'] = branchName + subDomain
         project = get_project(workingDirectory)
         project.build()
-        project.up()
+        project.up(detached=True)
         
         if data['action'] != 'synchronize':
             gh = login(token=os.environ['GITHUB_TOKEN'])
