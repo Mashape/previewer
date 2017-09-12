@@ -38,7 +38,7 @@ def pull_request(data, guid):
             shutil.rmtree(workingDirectory)
         dockerHelper.container_disconnect_network(pullRequestId + '_default', 'nginx-proxy')
     
-    if data['action'] == 'opened' or data['action'] == 'reopened'
+    if data['action'] == 'opened' or data['action'] == 'reopened':
         gh = login(token=os.environ['GITHUB_TOKEN'])
         issue = gh.issue(data['organization']['login'],
           data['pull_request']['head']['repo']['name'],
