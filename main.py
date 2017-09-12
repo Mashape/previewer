@@ -54,7 +54,7 @@ def pull_request(data, guid):
         os.environ['KONG_ADMIN_VIRTUAL_HOST'] = branchName + subDomain
         project = get_project(workingDirectory)
         project.build()
-        project.up()
+        project.up(detached=True)
         
         if data['action'] != 'synchronize':
             gh = login(token=os.environ['GITHUB_TOKEN'])
@@ -75,9 +75,6 @@ def checkout_pr_merge(sshUrl, workingDirectory, prNumber):
         repo.remotes.origin.fetch('+refs/pull/*:refs/heads/pull/*')
     git = repo.git
     git.checkout('pull/' + str(prNumber) + '/merge')
-
-def run_nginx_proxy():
-    dockerHelper = DockerHelper()
 
 
 class NiceLogger:

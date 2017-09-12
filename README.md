@@ -33,7 +33,6 @@ sudo chmod +x /usr/local/bin/docker-compose
 sudo apt-get install -y git make python-virtualenv
 git clone https://github.com/Mashape/previewer.git
 cd previewer
-vi main.py #change the GITHUB_WEBHOOKS_KEY
 make setup
 place a ssh private key with access to github at /home/ubuntu/.ssh/id_rsa
 place the previewer.service unit file in /etc/systemd/system/previewer.system
@@ -47,7 +46,7 @@ ssh -T git@github.com #verify we can access github
 ```
 
 6. Setup a github webhook for http://IP:5000/hooks with content type `application/json` #TODO elastic IP
-7. Push all events #TODO more restrictive
+7. Select the individual events create, delete, pull request and push
 8. Make sure the ping event gets a pong response
 9. Make a test PR in the repository (known bug the open pr webhook will timeout)
 10. docker ps #should see proxy-nginx and the docker-compose containers running
@@ -58,12 +57,14 @@ ssh -T git@github.com #verify we can access github
 
 1. Make sure my github user (hutchic) can clone the repository
 2. Setup a github webhook for http://IP:5000/hooks with content type application/json #TODO elastic IP
-3. Push all events #TODO more restrictive
-4. Make sure the ping event gets a pong response
-5. Make a test PR in the repository (known bug the open pr webhook will timeout)
-6. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
+3. Select the individual events create, delete, pull request and push
+4. Get the previewer webhook secret out of 1password
+5. Make sure the ping event gets a pong response
+6. Make a test PR in the repository (known bug the open pr webhook will timeout)
+7. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
 
 ## Adding Your IP
 
 Login to 705622348339.signin.aws.amazon.com/console and edit the security group sg-79786d09. Be sure to note
-in the description `who - where` the IP exception is for
+in the description `who - where` the IP exception is for. Set yourself a reminder to clean up locations that 
+are temporary (coffee shop, library, customer premises etc)
