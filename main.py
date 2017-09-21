@@ -60,6 +60,7 @@ def pull_request(data, guid):
         os.environ['KONG_VIRTUAL_HOST'] = branchName + '_kong' + subDomain
         os.environ['KONG_ADMIN_VIRTUAL_HOST'] = branchName + subDomain
         project = get_project(workingDirectory)
+        project.pull()
         project.build()
         project.up(detached=True)
     dockerHelper.prune_all()
