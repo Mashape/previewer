@@ -5,11 +5,12 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-Environment=FLASK_APP=main.py
+Environment=FLASK_APP=web.py
 Environment=GITHUB_WEBHOOKS_KEY=changme
 Environment=GITHUB_TOKEN=changeme
 WorkingDirectory=/home/ubuntu/previewer
 ExecStart=/home/ubuntu/previewer/.venv/bin/flask run --host=0.0.0.0
+ExecStart=/home/ubuntu/previewer/.venv/bin/python /home/ubuntu/previewer/task.py
 Restart=on-abort
 
 [Install]

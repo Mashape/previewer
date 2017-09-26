@@ -4,5 +4,8 @@ setup:
 	virtualenv .venv
 	.venv/bin/pip install -r requirements.txt
 
-run:
-	FLASK_APP=main.py .venv/bin/flask run --host=0.0.0.0
+hook_server:
+	FLASK_APP=web.py .venv/bin/flask run --host=0.0.0.0
+
+task_runner:
+  .venv/bin/python task.py
