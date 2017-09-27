@@ -1,30 +1,33 @@
-import os, re, subprocess, shutil
+import os, re, subprocess, shutil, json, sys, time
 from subprocess import PIPE
 from datetime import datetime
 from compose.cli.command import get_project
-from flask import Flask
-from flask_hookserver import Hooks
 from git import Repo
 from github3 import login
 
-app = Flask(__name__)
-app.config['VALIDATE_SIGNATURE'] = False
-app.config['GITHUB_WEBHOOKS_KEY'] = os.environ['GITHUB_WEBHOOKS_KEY']
-
 safeRegexPattern = re.compile('[\W_]+')
 
-@app.route("/")
-def hello():
-    return "Hello World!"
+def main():
+    while True:
+        sleep(5)
+        data = {}
+        files = os.listdir('/tmp/previewer')
+        for file in files:
+            try:
+              with open('/tmp/previewer/' + file) as json_data:
+                  data = json.load(json_data)
+                  
+                  if data['event'] == 'pull_request':
+                      pull_request(data)
+                  else:
+                      print('Dont understand webhook action of ' + data['event'])
+            except:
+                os.remove('/tmp/previewer/' + file)
+                print "Unexpected error:", sys.exc_info()[0]
+                raise
+            os.remove('/tmp/previewer/' + file)
 
-hooks = Hooks(app, url='/hooks')
-
-@hooks.hook('ping')
-def ping(data, guid):
-    return 'pong'
-
-@hooks.hook('pull_request')
-def pull_request(data, guid):
+def pull_request(data):
     pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
     workingDirectory = '/tmp/' + pullRequestId
     prNumber = data['number']
@@ -157,3 +160,5 @@ class DockerHelper:
         popen.wait() # wait for docker to complete
 
         return popen
+
+if __name__ == "__main__": main()
