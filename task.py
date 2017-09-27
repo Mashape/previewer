@@ -21,7 +21,7 @@ def main():
                   
                   if data['event'] == 'pull_request':
                       pull_request(data)
-                  if data['event'] == 'create' or data['event'] == 'push':
+                  if data['event'] == 'create' or data['event'] == 'push' or data['event'] == 'delete':
                       branch(data)
                   else:
                       print('Dont understand webhook action of ' + data['event'])
@@ -63,6 +63,9 @@ def branch(data):
     subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     
     cleanup_past_run(workingDirectory)
+    if data['event'] == 'delete':
+        return True
+    
     dockerHelper = DockerHelper()
     dockerHelper.container_disconnect_network(safeBranchName + '_default', 'nginx-proxy')
     checkout_branch(data['repository']['ssh_url'], workingDirectory, branchName)
@@ -97,7 +100,7 @@ def pull_request(data):
         issue = gh.issue(data['organization']['login'],
           data['pull_request']['head']['repo']['name'],
           data['number'])
-        issue.create_comment('The preview environment: http://' + branchName + subDomain)
+        issue.create_comment('The preview environment: http://' + environment['KONG_ADMIN_VIRTUAL_HOST'])
     return True
 
 def checkout_branch(sshUrl, workingDirectory, branchName):
