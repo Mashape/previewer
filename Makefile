@@ -8,4 +8,4 @@ hook_server:
 	FLASK_APP=web.py .venv/bin/flask run --host=0.0.0.0
 
 task_runner:
-  .venv/bin/python task.py
+	.venv/bin/python task.py

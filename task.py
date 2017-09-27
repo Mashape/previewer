@@ -9,8 +9,10 @@ safeRegexPattern = re.compile('[\W_]+')
 
 def main():
     while True:
-        sleep(5)
+        time.sleep(5)
         data = {}
+        if not os.path.exists('/tmp/previewer'):
+            os.makedirs('/tmp/previewer')
         files = os.listdir('/tmp/previewer')
         for file in files:
             try:

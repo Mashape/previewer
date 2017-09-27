@@ -35,13 +35,17 @@ git clone https://github.com/Mashape/previewer.git
 cd previewer
 make setup
 place a ssh private key with access to github at /home/ubuntu/.ssh/id_rsa
-place the previewer.service unit file in /etc/systemd/system/previewer.system
-edit the previewer.system file and update the two changeme env variables
+place the previewer.service unit files in /etc/systemd/system/previewer-[web|task].system
+edit the previewer-[web|task].system file and update the two changeme env variables
 sudo systemctl daemon-reload
-sudo systemctl enable previewer
-sudo systemctl start previewer
-sudo systemctl status previewer #verify its running
-sudo journalctl -u previewer  #view the logs
+sudo systemctl enable previewer-web
+sudo systemctl enable previewer-task
+sudo systemctl start previewer-web
+sudo systemctl start previewer-task
+sudo systemctl status previewer-web #verify its running
+sudo systemctl status previewer-task #verify its running
+sudo journalctl -u previewer-web  #view the logs
+sudo journalctl -u previewer-task  #view the logs
 ssh -T git@github.com #verify we can access github
 ```
 
