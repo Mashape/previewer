@@ -91,6 +91,7 @@ def pull_request(data):
     
     if data['action'] == 'opened' or data['action'] == 'reopened' or data['action'] == 'synchronize':
         checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
+        environment = {}
         environment['KONG_VIRTUAL_HOST'] = branchName + '_pr_kong' + subDomain
         environment['KONG_ADMIN_VIRTUAL_HOST'] = branchName + '_pr' + subDomain
         run_docker_compose(pullRequestId, environment, workingDirectory)
