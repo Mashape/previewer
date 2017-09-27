@@ -1,4 +1,4 @@
-import os, re, subprocess, shutil, json, sys
+import os, re, subprocess, shutil, json, sys, time
 from subprocess import PIPE
 from datetime import datetime
 from compose.cli.command import get_project
@@ -9,6 +9,7 @@ safeRegexPattern = re.compile('[\W_]+')
 
 def main():
     while True:
+        sleep(5)
         data = {}
         files = os.listdir('/tmp/previewer')
         for file in files:
