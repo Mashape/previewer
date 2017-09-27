@@ -21,6 +21,8 @@ def main():
                   
                   if data['event'] == 'pull_request':
                       pull_request(data)
+                  if data['event'] == 'create' or data['event'] == 'push' or data['event'] == 'delete':
+                      branch(data)
                   else:
                       print('Dont understand webhook action of ' + data['event'])
             except:
@@ -29,47 +31,86 @@ def main():
                 raise
             os.remove('/tmp/previewer/' + file)
 
+def cleanup_past_run(directory):
+    if os.path.isdir(directory) == True:
+        project = get_project(directory)
+        project.kill()
+        project.remove_stopped()
+        shutil.rmtree(directory)
+
+def run_docker_compose(networkPrefix, environment, workingDirectory):
+    dockerHelper = DockerHelper()
+    dockerHelper.clean_old_images()
+    dockerHelper.pull_container_image('jwilder/nginx-proxy')
+    dockerHelper.create_network(networkPrefix + '_default')
+    containerArgs = ["-v", "/var/run/docker.sock:/tmp/docker.sock:ro", "-p", "8111:80"]
+    dockerHelper.run_container('nginx-proxy', 'jwilder/nginx-proxy', containerArgs)
+    dockerHelper.container_join_network(networkPrefix + '_default', 'nginx-proxy')
+    
+    os.environ = environment
+    project = get_project(workingDirectory)
+    project.pull()
+    project.build()
+    project.up(detached=True)
+    
+    dockerHelper.prune_all()
+
+
+def branch(data):
+    branchName = str(data['ref']).split("/", 2)[-1]
+    safeBranchName = safeRegexPattern.sub('', str(data['ref']).split("/")[-1])
+    workingDirectory = '/tmp/' + safeBranchName
+    subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+    
+    cleanup_past_run(workingDirectory)
+    if data['event'] == 'delete':
+        return True
+    
+    dockerHelper = DockerHelper()
+    dockerHelper.container_disconnect_network(safeBranchName + '_default', 'nginx-proxy')
+    checkout_branch(data['repository']['ssh_url'], workingDirectory, branchName)
+
+    environment = {}
+    environment['KONG_VIRTUAL_HOST'] = safeBranchName + '_kong' + subDomain
+    environment['KONG_ADMIN_VIRTUAL_HOST'] = safeBranchName + subDomain
+    run_docker_compose(safeBranchName, environment, workingDirectory)
+    
+    return True
+
 def pull_request(data):
     pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
     workingDirectory = '/tmp/' + pullRequestId
     prNumber = data['number']
     subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     branchName = safeRegexPattern.sub('', str(data['pull_request']['head']['ref']))
-    dockerHelper = DockerHelper()
 
     if data['action'] == 'closed' or data['action'] == 'synchronize':
-        if os.path.isdir(workingDirectory) == True:
-            project = get_project(workingDirectory)
-            project.kill()
-            project.remove_stopped()
-            shutil.rmtree(workingDirectory)
+        cleanup_past_run(workingDirectory)
+        dockerHelper = DockerHelper()
         dockerHelper.container_disconnect_network(pullRequestId + '_default', 'nginx-proxy')
     
+    if data['action'] == 'opened' or data['action'] == 'reopened' or data['action'] == 'synchronize':
+        checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
+        environment['KONG_VIRTUAL_HOST'] = branchName + '_pr_kong' + subDomain
+        environment['KONG_ADMIN_VIRTUAL_HOST'] = branchName + '_pr' + subDomain
+        run_docker_compose(pullRequestId, environment, workingDirectory)
+
     if data['action'] == 'opened' or data['action'] == 'reopened':
         gh = login(token=os.environ['GITHUB_TOKEN'])
         issue = gh.issue(data['organization']['login'],
           data['pull_request']['head']['repo']['name'],
           data['number'])
-        issue.create_comment('The preview environment: http://' + branchName + subDomain)
-    
-    if data['action'] == 'opened' or data['action'] == 'reopened' or data['action'] == 'synchronize':
-        checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
-        
-        dockerHelper.clean_old_images()
-        dockerHelper.pull_container_image('jwilder/nginx-proxy')
-        dockerHelper.create_network(pullRequestId + '_default')
-        containerArgs = ["-v", "/var/run/docker.sock:/tmp/docker.sock:ro", "-p", "8111:80"]
-        dockerHelper.run_container('nginx-proxy', 'jwilder/nginx-proxy', containerArgs)
-        dockerHelper.container_join_network(pullRequestId + '_default', 'nginx-proxy')
-        
-        os.environ['KONG_VIRTUAL_HOST'] = branchName + '_kong' + subDomain
-        os.environ['KONG_ADMIN_VIRTUAL_HOST'] = branchName + subDomain
-        project = get_project(workingDirectory)
-        project.pull()
-        project.build()
-        project.up(detached=True)
-    dockerHelper.prune_all()
-    return 'done'
+        issue.create_comment('The preview environment: http://' + environment['KONG_ADMIN_VIRTUAL_HOST'])
+    return True
+
+def checkout_branch(sshUrl, workingDirectory, branchName):
+    if os.path.isdir(workingDirectory) == True:
+        repo = Repo(workingDirectory)
+        repo.remotes.origin.fetch()
+    else:
+        repo = Repo.clone_from(sshUrl, workingDirectory, None, env={'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa' })    
+    git = repo.git
+    git.checkout(branchName)
 
 def checkout_pr_merge(sshUrl, workingDirectory, prNumber):
     if os.path.isdir(workingDirectory) == True:
