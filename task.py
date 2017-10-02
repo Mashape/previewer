@@ -6,6 +6,7 @@ from git import Repo
 from github3 import login
 
 safeRegexPattern = re.compile('[\W_]+')
+githubToken = os.environ['GITHUB_TOKEN']
 
 def main():
     while True:
@@ -97,7 +98,7 @@ def pull_request(data):
         run_docker_compose(pullRequestId, environment, workingDirectory)
 
     if data['action'] == 'opened' or data['action'] == 'reopened':
-        gh = login(token=os.environ['GITHUB_TOKEN'])
+        gh = login(token=githubToken)
         issue = gh.issue(data['organization']['login'],
           data['pull_request']['head']['repo']['name'],
           data['number'])
