@@ -52,7 +52,7 @@ ssh -T git@github.com #verify we can access github
 6. Setup a github webhook for http://IP:5000/hooks with content type `application/json` #TODO elastic IP
 7. Select the individual events create, delete, pull request and push
 8. Make sure the ping event gets a pong response
-9. Make a test PR in the repository (known bug the open pr webhook will timeout)
+9. Make a test PR in the repository
 10. docker ps #should see proxy-nginx and the docker-compose containers running
 11. create an ELB. Use port 5000 as the health check and send traffic from 80 to 8111
 12. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
@@ -64,7 +64,7 @@ ssh -T git@github.com #verify we can access github
 3. Select the individual events create, delete, pull request and push
 4. Get the previewer webhook secret out of 1password
 5. Make sure the ping event gets a pong response
-6. Make a test PR in the repository (known bug the open pr webhook will timeout)
+6. Make a test PR in the repository
 7. setup R53 to point to the ELB ( https://mashape.signin.aws.amazon.com/console )
 
 ## Adding Your IP
