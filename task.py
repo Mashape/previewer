@@ -80,7 +80,7 @@ def branch(data):
 
 def pull_request(data):
     pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
-    workingDirectory = '/tmp/' + pullRequestId
+    workingDirectory = '/tmp/' + data['repository']['name'] + '/' + pullRequestId
     prNumber = data['number']
     subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     branchName = safeRegexPattern.sub('', str(data['pull_request']['head']['ref']))
