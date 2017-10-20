@@ -60,7 +60,7 @@ def run_docker_compose(networkPrefix, environment, workingDirectory):
 def branch(data):
     branchName = str(data['ref']).split("/", 2)[-1]
     safeBranchName = safeRegexPattern.sub('', str(data['ref']).split("/")[-1])
-    workingDirectory = '/tmp/' + safeBranchName
+    workingDirectory = '/tmp/' + data['repository']['name'] + '/' + safeBranchName
     subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     
     cleanup_past_run(workingDirectory)
