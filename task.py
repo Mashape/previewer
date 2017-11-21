@@ -133,6 +133,9 @@ def branch(data):
         branch_name)
 
     environment = {}
+    # TODO backwards compatibility fix. Delete at a later date
+    environment['KONG_VIRTUAL_HOST'] = safeBranchName + '_kong' + subDomain
+    environment['KONG_ADMIN_VIRTUAL_HOST'] = safeBranchName + subDomain
     environment['VIRTUAL_HOST'] = safebranch_name + sub_domain
     run_docker_compose(safebranch_name, environment, working_directory)
 
@@ -162,6 +165,9 @@ def pull_request(data):
             working_directory,
             pr_number)
         environment = {}
+        # TODO backwards compatibility fix. Delete at a later date
+        environment['KONG_VIRTUAL_HOST'] = branchName + '_pr_kong' + subDomain
+        environment['KONG_ADMIN_VIRTUAL_HOST'] = branchName + '_pr' + subDomain
         environment['VIRTUAL_HOST'] = branch_name + \
             '_pr' + sub_domain
         run_docker_compose(pull_request_id, environment, working_directory)
