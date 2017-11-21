@@ -1,47 +1,49 @@
-from flask import request, Flask
 from functools import wraps
-from werkzeug.exceptions import BadRequest, Forbidden, ServiceUnavailable
 import hashlib
 import os
 import hmac
 import ipaddress
-import requests
 import time
 import json
+import requests
 import werkzeug.security
+from werkzeug.exceptions import BadRequest, Forbidden, ServiceUnavailable
+from flask import request, Flask
 
-app = Flask(__name__)
-app.config['VALIDATE_IP'] = True
-app.config['VALIDATE_SIGNATURE'] = False
-app.config['GITHUB_WEBHOOKS_KEY'] = os.environ['GITHUB_WEBHOOKS_KEY']
+APP = Flask(__name__)
+APP.config['VALIDATE_IP'] = True
+APP.config['VALIDATE_SIGNATURE'] = False
+APP.config['GITHUB_WEBHOOKS_KEY'] = os.environ['GITHUB_WEBHOOKS_KEY']
 
-@app.route("/")
+
+@APP.route("/")
 def hello():
     return "Hello World!"
 
-@app.route('/hooks', methods=['POST'])
+
+@APP.route('/hooks', methods=['POST'])
 def github_hooks():
     # https://github.com/nickfrostatx/flask-hookserver/blob/master/flask_hookserver.py
-    if app.config['VALIDATE_IP']:
+    if APP.config['VALIDATE_IP']:
         if not is_github_ip(request.remote_addr):
             raise Forbidden('Requests must originate from GitHub')
-    
-    if app.config['VALIDATE_SIGNATURE']:
-        key = app.config.get('GITHUB_WEBHOOKS_KEY', app.secret_key)
+
+    if APP.config['VALIDATE_SIGNATURE']:
+        key = APP.config.get('GITHUB_WEBHOOKS_KEY', APP.secret_key)
         signature = request.headers.get('X-Hub-Signature')
-    
+
         if hasattr(request, 'get_data'):
             # Werkzeug >= 0.9
             payload = request.get_data()
         else:
             payload = request.data
-    
+
         if not signature:
             raise BadRequest('Missing signature')
-    
+
         if not check_signature(signature, key, payload):
             raise BadRequest('Wrong signature')
-    
+
     event = request.headers.get('X-GitHub-Event')
     guid = request.headers.get('X-GitHub-Delivery')
     if not event:
@@ -50,20 +52,21 @@ def github_hooks():
         raise BadRequest('Missing header: X-GitHub-Delivery')
     elif event == 'ping':
         return 'pong'
-    
+
     if hasattr(request, 'get_json'):
         # Flask >= 0.10
         data = request.get_json()
     else:
         data = request.json
-    
+
     data.update({'event': event})
     if not os.path.exists('/tmp/previewer'):
         os.makedirs('/tmp/previewer')
-    with open('/tmp/previewer/' + guid + '.' + event , 'w') as datafile:
+    with open('/tmp/previewer/' + guid + '.' + event, 'w') as datafile:
         json.dump(data, datafile)
     return "done - work has been queued"
-      
+
+
 class _timed_memoize(object):
 
     """Decorator that caches the value of function.
@@ -86,6 +89,7 @@ class _timed_memoize(object):
                 self.last = time.time()
             return self.cache
         return inner
+
 
 def _load_github_hooks(github_url='https://api.github.com'):
     """Request GitHub's IP block from their API.
@@ -114,6 +118,7 @@ def _load_github_hooks(github_url='https://api.github.com'):
 # So we don't get rate limited
 load_github_hooks = _timed_memoize(60)(_load_github_hooks)
 
+
 def is_github_ip(ip_str):
     """Verify that an IP address is owned by GitHub."""
     if isinstance(ip_str, bytes):
@@ -127,6 +132,7 @@ def is_github_ip(ip_str):
         if ip in ipaddress.ip_network(block):
             return True
     return False
+
 
 def check_signature(signature, key, data):
     """Compute the HMAC signature and test against a given hash."""

@@ -1,12 +1,20 @@
-import os, re, subprocess, shutil, json, sys, time
+import os
+import re
+import subprocess
+import shutil
+import json
+import sys
+import time
 from subprocess import PIPE
 from datetime import datetime
+import docker
 from compose.cli.command import get_project
 from git import Repo
 from github3 import login
 
-safeRegexPattern = re.compile('[\W_]+')
-githubToken = os.environ['GITHUB_TOKEN']
+SAFE_REGEX_PATTERN = re.compile('[\W_]+')
+GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+
 
 def main():
     while True:
@@ -15,120 +23,159 @@ def main():
         if not os.path.exists('/tmp/previewer'):
             os.makedirs('/tmp/previewer')
         files = os.listdir('/tmp/previewer')
-        for file in files:
+        for instruction_file in files:
             try:
-              with open('/tmp/previewer/' + file) as json_data:
-                  data = json.load(json_data)
-                  
-                  if data['event'] == 'pull_request':
-                      pull_request(data)
-                  if data['event'] == 'create' or data['event'] == 'push' or data['event'] == 'delete':
-                      branch(data)
-                  else:
-                      print('Dont understand webhook action of ' + data['event'])
-            except:
-                os.remove('/tmp/previewer/' + file)
+                with open('/tmp/previewer/' + instruction_file) as json_data:
+                    data = json.load(json_data)
+
+                    branch_events = ['create', 'push', 'delete']
+                    if data['event'] == 'pull_request':
+                        pull_request(data)
+                    if data['event'] in branch_events:
+                        branch(data)
+                    else:
+                        print(
+                            'Dont understand webhook action of ' +
+                            data['event'])
+            except BaseException:
+                os.remove('/tmp/previewer/' + instruction_file)
                 print "Unexpected error:", sys.exc_info()[0]
                 raise
-            os.remove('/tmp/previewer/' + file)
+            os.remove('/tmp/previewer/' + instruction_file)
+
 
 def cleanup_past_run(directory):
-    if os.path.isdir(directory) == True:
+    if os.path.isdir(directory):
+        client = docker.from_env()
+        client.networks.list(names='kongadmin_default')[
+            0].disconnect('nginx-proxy')
+
         project = get_project(directory)
         project.kill()
         project.remove_stopped()
         shutil.rmtree(directory)
 
-def run_docker_compose(networkPrefix, environment, workingDirectory):
-    dockerHelper = DockerHelper()
-    dockerHelper.clean_old_images()
-    dockerHelper.pull_container_image('jwilder/nginx-proxy')
-    dockerHelper.create_network(networkPrefix + '_default')
-    containerArgs = ["-v", "/var/run/docker.sock:/tmp/docker.sock:ro", "-p", "8111:80"]
-    dockerHelper.run_container('nginx-proxy', 'jwilder/nginx-proxy', containerArgs)
-    dockerHelper.container_join_network(networkPrefix + '_default', 'nginx-proxy')
-    
+
+def run_docker_compose(network_prefix, environment, working_directory):
+    docker_helper = DockerHelper()
+    docker_helper.clean_old_images()
+    docker_helper.pull_container_image('jwilder/nginx-proxy')
+    docker_helper.create_network(network_prefix + '_default')
+    containerArgs = [
+        "-v",
+        "/var/run/docker.sock:/tmp/docker.sock:ro",
+        "-p",
+        "8111:80"]
+    docker_helper.run_container(
+        'nginx-proxy',
+        'jwilder/nginx-proxy',
+        containerArgs)
+    docker_helper.container_join_network(
+        network_prefix + '_default', 'nginx-proxy')
+
     os.environ = environment
-    project = get_project(workingDirectory)
+    project = get_project(working_directory)
     project.pull()
     project.build()
     project.up(detached=True)
-    
-    dockerHelper.prune_all()
+
+    docker_helper.prune_all()
 
 
 def branch(data):
-    branchName = str(data['ref']).split("/", 2)[-1]
-    safeBranchName = safeRegexPattern.sub('', str(data['ref']).split("/")[-1])
-    workingDirectory = '/tmp/' + data['repository']['name'] + '/' + safeBranchName
-    subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
-    
-    cleanup_past_run(workingDirectory)
+    branch_name = str(data['ref']).split("/", 2)[-1]
+    safebranch_name = SAFE_REGEX_PATTERN.sub('', str(data['ref']).split("/")[-1])
+    working_directory = '/tmp/' + \
+        data['repository']['name'] + '/' + safebranch_name
+    sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+
+    cleanup_past_run(working_directory)
     if data['event'] == 'delete':
         return True
-    
-    dockerHelper = DockerHelper()
-    dockerHelper.container_disconnect_network(safeBranchName + '_default', 'nginx-proxy')
-    checkout_branch(data['repository']['ssh_url'], workingDirectory, branchName)
+
+    docker_helper = DockerHelper()
+    docker_helper.container_disconnect_network(
+        safebranch_name + '_default', 'nginx-proxy')
+    checkout_branch(
+        data['repository']['ssh_url'],
+        working_directory,
+        branch_name)
 
     environment = {}
-    environment['KONG_VIRTUAL_HOST'] = safeBranchName + '_kong' + subDomain
-    environment['KONG_ADMIN_VIRTUAL_HOST'] = safeBranchName + subDomain
-    run_docker_compose(safeBranchName, environment, workingDirectory)
-    
+    environment['KONG_VIRTUAL_HOST'] = safebranch_name + '_kong' + sub_domain
+    environment['KONG_ADMIN_VIRTUAL_HOST'] = safebranch_name + sub_domain
+    run_docker_compose(safebranch_name, environment, working_directory)
+
     return True
+
 
 def pull_request(data):
-    pullRequestId = safeRegexPattern.sub('', str(data['pull_request']['id']))
-    workingDirectory = '/tmp/' + data['repository']['name'] + '/' + pullRequestId
-    prNumber = data['number']
-    subDomain = '.' + data['repository']['name'] + '.previewer.mashape.com'
-    branchName = safeRegexPattern.sub('', str(data['pull_request']['head']['ref']))
+    pull_request_id = SAFE_REGEX_PATTERN.sub('', str(data['pull_request']['id']))
+    working_directory = '/tmp/' + \
+        data['repository']['name'] + '/' + pull_request_id
+    pr_number = data['number']
+    sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+    branch_name = SAFE_REGEX_PATTERN.sub(
+        '', str(data['pull_request']['head']['ref']))
 
     if data['action'] == 'closed' or data['action'] == 'synchronize':
-        cleanup_past_run(workingDirectory)
+        cleanup_past_run(working_directory)
         dockerHelper = DockerHelper()
-        dockerHelper.container_disconnect_network(pullRequestId + '_default', 'nginx-proxy')
-    
-    if data['action'] == 'opened' or data['action'] == 'reopened' or data['action'] == 'synchronize':
-        checkout_pr_merge(data['repository']['ssh_url'], workingDirectory, prNumber)
+        docker_helper.container_disconnect_network(
+            pull_request_id + '_default', 'nginx-proxy')
+
+    if (data['action'] == 'opened' or
+            data['action'] == 'reopened' or
+            data['action'] == 'synchronize'):
+        checkout_pr_merge(
+            data['repository']['ssh_url'],
+            working_directory,
+            pr_number)
         environment = {}
-        environment['KONG_VIRTUAL_HOST'] = branchName + '_pr_kong' + subDomain
-        environment['KONG_ADMIN_VIRTUAL_HOST'] = branchName + '_pr' + subDomain
-        run_docker_compose(pullRequestId, environment, workingDirectory)
+        environment['KONG_VIRTUAL_HOST'] = branch_name + '_pr_kong' + sub_domain
+        environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + '_pr' + sub_domain
+        run_docker_compose(pull_request_id, environment, working_directory)
 
     if data['action'] == 'opened' or data['action'] == 'reopened':
-        gh = login(token=githubToken)
+        gh = login(token=GITHUB_TOKEN)
         issue = gh.issue(data['organization']['login'],
-          data['pull_request']['head']['repo']['name'],
-          data['number'])
-        issue.create_comment('The preview environment: http://' + environment['KONG_ADMIN_VIRTUAL_HOST'])
+                         data['pull_request']['head']['repo']['name'],
+                         data['number'])
+        issue.create_comment(
+            'The preview environment: http://' +
+            environment['KONG_ADMIN_VIRTUAL_HOST'])
     return True
 
-def checkout_branch(sshUrl, workingDirectory, branchName):
-    if os.path.isdir(workingDirectory) == True:
-        repo = Repo(workingDirectory)
-        repo.remotes.origin.fetch()
-    else:
-        repo = Repo.clone_from(sshUrl, workingDirectory, None, env={'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa' })    
-    git = repo.git
-    git.checkout(branchName)
 
-def checkout_pr_merge(sshUrl, workingDirectory, prNumber):
-    if os.path.isdir(workingDirectory) == True:
-        repo = Repo(workingDirectory)
+def checkout_branch(ssh_url, working_directory, branch_name):
+    if os.path.isdir(working_directory):
+        repo = Repo(working_directory)
         repo.remotes.origin.fetch()
     else:
-        repo = Repo.clone_from(sshUrl, workingDirectory, None, env={'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa' })
+        repo = Repo.clone_from(
+            ssh_url, working_directory, None, env={
+                'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa'})
+    git = repo.git
+    git.checkout(branch_name)
+
+
+def checkout_pr_merge(ssh_url, working_directory, pr_number):
+    if os.path.isdir(working_directory):
+        repo = Repo(working_directory)
+        repo.remotes.origin.fetch()
+    else:
+        repo = Repo.clone_from(
+            ssh_url, working_directory, None, env={
+                'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa'})
         repo.remotes.origin.fetch('+refs/pull/*:refs/heads/pull/*')
     git = repo.git
-    git.checkout('pull/' + str(prNumber) + '/merge')
+    git.checkout('pull/' + str(pr_number) + '/merge')
 
 
 class NiceLogger:
     def log(self, message):
         datenow = datetime.today().strftime('%d-%m-%Y %H:%M:%S')
-        print("{0} |  {1}".format(datenow, message))
+        print "{0} |  {1}".format(datenow, message)
 
 
 class DockerHelper:
@@ -160,7 +207,12 @@ class DockerHelper:
         self.run_command(command)
 
     def container_disconnect_network(self, networkName, containerName):
-        command = ["docker", "network", "disconnect", networkName, containerName]
+        command = [
+            "docker",
+            "network",
+            "disconnect",
+            networkName,
+            containerName]
         self.run_command(command)
 
     def container_join_network(self, networkName, containerName):
@@ -189,7 +241,12 @@ class DockerHelper:
             id = id.replace("\n", "")
             self.niceLogger.log(" - New container ID " + id)
 
-    def run_container_with_exec(self, containerName, containerImage, execCommand, args):
+    def run_container_with_exec(
+            self,
+            containerName,
+            containerImage,
+            execCommand,
+            args):
         command = ["docker", "run", "-d", "--name", containerName]
         command.extend(args)
         command.append(containerImage)
@@ -202,8 +259,10 @@ class DockerHelper:
         self.niceLogger.log(debugcommand)
 
         popen = subprocess.Popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        popen.wait() # wait for docker to complete
+        popen.wait()  # wait for docker to complete
 
         return popen
 
-if __name__ == "__main__": main()
+
+if __name__ == "__main__":
+    main()
