@@ -9,3 +9,6 @@ hook_server:
 
 task_runner:
 	.venv/bin/python task.py
+
+cleanup:
+	rm -rf .venv

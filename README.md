@@ -1,5 +1,9 @@
 # Previewer
 
+## WARNING
+
+**DO NOT RUN THIS ON A PUBLIC REPOSITORY BAD THINGS WILL HAPPEN**
+
 ## Manual Setup Instructions
 
 1. https://705622348339.signin.aws.amazon.com/console
