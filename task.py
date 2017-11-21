@@ -166,8 +166,8 @@ def pull_request(data):
             pr_number)
         environment = {}
         # TODO backwards compatibility fix. Delete at a later date
-        environment['KONG_VIRTUAL_HOST'] = branchName + '_pr_kong' + sub_domain
-        environment['KONG_ADMIN_VIRTUAL_HOST'] = branchName + '_pr' + sub_domain
+        environment['KONG_VIRTUAL_HOST'] = branch_name + '_pr_kong' + sub_domain
+        environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + '_pr' + sub_domain
         environment['VIRTUAL_HOST'] = branch_name + \
             '_pr' + sub_domain
         run_docker_compose(pull_request_id, environment, working_directory)
