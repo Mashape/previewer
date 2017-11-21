@@ -87,7 +87,7 @@ def run_docker_compose(network_prefix, environment, working_directory):
     except IndexError:
         ports = {'80/tcp': '8111'}
         volumes = {
-            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'}}
+            '/var/run/docker.sock': {'bind': '/tmp/docker.sock', 'mode': 'ro'}}
         nginx_proxy = client.containers.run('jwilder/nginx-proxy',
                                             volumes=volumes,
                                             ports=ports,
