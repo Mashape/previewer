@@ -1,12 +1,9 @@
 import os
 import re
-import subprocess
 import shutil
 import json
 import sys
 import time
-from subprocess import PIPE
-from datetime import datetime
 import docker
 from compose.cli.command import get_project
 from git import Repo
@@ -44,58 +41,67 @@ def main():
             os.remove('/tmp/previewer/' + instruction_file)
 
 
-def cleanup_past_run(directory):
+def cleanup_past_run(network_prefix, directory):
     if os.path.isdir(directory):
-        client = docker.from_env()
-        client.networks.list(names='kongadmin_default')[
-            0].disconnect('nginx-proxy')
-
         project = get_project(directory)
         project.kill()
         project.remove_stopped()
         shutil.rmtree(directory)
 
+    client = docker.from_env()
+    client.images.prune()
+
+    nginx_proxy = client.containers.get("nginx-proxy")
+    if nginx_proxy is None:
+        return True
+
+    compose_network = client.networks.list([network_prefix + '_default'])[0]
+    if compose_network is None:
+        return True
+    compose_network.disconnect(nginx_proxy)
+
 
 def run_docker_compose(network_prefix, environment, working_directory):
-    docker_helper = DockerHelper()
-    docker_helper.clean_old_images()
-    docker_helper.pull_container_image('jwilder/nginx-proxy')
-    docker_helper.create_network(network_prefix + '_default')
-    containerArgs = [
-        "-v",
-        "/var/run/docker.sock:/tmp/docker.sock:ro",
-        "-p",
-        "8111:80"]
-    docker_helper.run_container(
-        'nginx-proxy',
-        'jwilder/nginx-proxy',
-        containerArgs)
-    docker_helper.container_join_network(
-        network_prefix + '_default', 'nginx-proxy')
-
     os.environ = environment
     project = get_project(working_directory)
     project.pull()
     project.build()
     project.up(detached=True)
 
-    docker_helper.prune_all()
+    client = docker.from_env()
+    client.images.prune()
+    client.images.pull('jwilder/nginx-proxy')
+
+    nginx_proxy = client.containers.get("nginx-proxy")
+    if nginx_proxy is None:
+        ports = {'80/tcp': '8111'}
+        volumes = {
+            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'}}
+        nginx_proxy = client.containers.run('jwilder/nginx-proxy',
+                                            volumes=volumes,
+                                            ports=ports,
+                                            name="nginx-proxy",
+                                            detach=True)
+
+    compose_network = client.networks.list([network_prefix + '_default'])[0]
+    if compose_network is None:
+        compose_network = client.networks.create(network_prefix + '_default')
+    compose_network.disconnect(nginx_proxy)
+    compose_network.connect(nginx_proxy)
 
 
 def branch(data):
     branch_name = str(data['ref']).split("/", 2)[-1]
-    safebranch_name = SAFE_REGEX_PATTERN.sub('', str(data['ref']).split("/")[-1])
+    safebranch_name = SAFE_REGEX_PATTERN.sub(
+        '', str(data['ref']).split("/")[-1])
     working_directory = '/tmp/' + \
         data['repository']['name'] + '/' + safebranch_name
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
 
-    cleanup_past_run(working_directory)
+    cleanup_past_run(safebranch_name, working_directory)
     if data['event'] == 'delete':
         return True
 
-    docker_helper = DockerHelper()
-    docker_helper.container_disconnect_network(
-        safebranch_name + '_default', 'nginx-proxy')
     checkout_branch(
         data['repository']['ssh_url'],
         working_directory,
@@ -110,7 +116,8 @@ def branch(data):
 
 
 def pull_request(data):
-    pull_request_id = SAFE_REGEX_PATTERN.sub('', str(data['pull_request']['id']))
+    pull_request_id = SAFE_REGEX_PATTERN.sub(
+        '', str(data['pull_request']['id']))
     working_directory = '/tmp/' + \
         data['repository']['name'] + '/' + pull_request_id
     pr_number = data['number']
@@ -119,10 +126,7 @@ def pull_request(data):
         '', str(data['pull_request']['head']['ref']))
 
     if data['action'] == 'closed' or data['action'] == 'synchronize':
-        cleanup_past_run(working_directory)
-        dockerHelper = DockerHelper()
-        docker_helper.container_disconnect_network(
-            pull_request_id + '_default', 'nginx-proxy')
+        cleanup_past_run(pull_request_id, working_directory)
 
     if (data['action'] == 'opened' or
             data['action'] == 'reopened' or
@@ -132,8 +136,10 @@ def pull_request(data):
             working_directory,
             pr_number)
         environment = {}
-        environment['KONG_VIRTUAL_HOST'] = branch_name + '_pr_kong' + sub_domain
-        environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + '_pr' + sub_domain
+        environment['KONG_VIRTUAL_HOST'] = branch_name + \
+            '_pr_kong' + sub_domain
+        environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + \
+            '_pr' + sub_domain
         run_docker_compose(pull_request_id, environment, working_directory)
 
     if data['action'] == 'opened' or data['action'] == 'reopened':
@@ -170,98 +176,6 @@ def checkout_pr_merge(ssh_url, working_directory, pr_number):
         repo.remotes.origin.fetch('+refs/pull/*:refs/heads/pull/*')
     git = repo.git
     git.checkout('pull/' + str(pr_number) + '/merge')
-
-
-class NiceLogger:
-    def log(self, message):
-        datenow = datetime.today().strftime('%d-%m-%Y %H:%M:%S')
-        print "{0} |  {1}".format(datenow, message)
-
-
-class DockerHelper:
-    niceLogger = NiceLogger()
-
-    def prune_all(self):
-        command = ["docker", "system", "prune", "--force"]
-        self.run_command(command)
-
-    def clean_old_images(self):
-        command = ["docker", "images", "-q", "-f", "dangling=true"]
-        image_ids = self.run_command(command)
-
-        for id in image_ids.stdout.readlines():
-            id = id.decode("utf-8")
-            id = id.replace("\n", "")
-
-            self.niceLogger.log("Removing container image id " + id)
-            command = ["docker", "rmi", "-f", str(id)]
-            self.run_command(command)
-
-    def remove_container(self, containerName):
-        command = ["docker", "rm", "-f", containerName]
-        self.run_command(command)
-        self.niceLogger.log(" - Removed " + containerName)
-
-    def create_network(self, networkName):
-        command = ["docker", "network", "create", networkName]
-        self.run_command(command)
-
-    def container_disconnect_network(self, networkName, containerName):
-        command = [
-            "docker",
-            "network",
-            "disconnect",
-            networkName,
-            containerName]
-        self.run_command(command)
-
-    def container_join_network(self, networkName, containerName):
-        command = ["docker", "network", "connect", networkName, containerName]
-        self.run_command(command)
-
-    def pull_container_image(self, containerImage):
-        command = ["docker", "pull", containerImage]
-        self.run_command(command)
-        self.niceLogger.log(" - Pulled " + containerImage)
-
-    def run_container(self, containerName, containerImage, args):
-        command = ["docker", "run", "-d", "--name", containerName]
-        command.extend(args)
-        command.append(containerImage)
-
-        popen = self.run_command(command)
-
-        error = popen.stderr.readline().decode("utf-8")
-
-        if error != "":
-            error = error.replace("\n", "")
-            self.niceLogger.log("An error occurred:" + error)
-        else:
-            id = popen.stdout.readline().decode("utf-8")
-            id = id.replace("\n", "")
-            self.niceLogger.log(" - New container ID " + id)
-
-    def run_container_with_exec(
-            self,
-            containerName,
-            containerImage,
-            execCommand,
-            args):
-        command = ["docker", "run", "-d", "--name", containerName]
-        command.extend(args)
-        command.append(containerImage)
-        command.append(execCommand)
-
-        self.run_command(command)
-
-    def run_command(self, command):
-        debugcommand = " - {0}".format(" ".join(command))
-        self.niceLogger.log(debugcommand)
-
-        popen = subprocess.Popen(command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        popen.wait()  # wait for docker to complete
-
-        return popen
 
 
 if __name__ == "__main__":
