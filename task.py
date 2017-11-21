@@ -4,8 +4,10 @@ import shutil
 import json
 import sys
 import time
+import subprocess
 import docker
 from compose.cli.command import get_project
+from docker.errors import APIError
 from git import Repo
 from github3 import login
 
@@ -16,6 +18,7 @@ GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 def main():
     while True:
         time.sleep(5)
+
         data = {}
         if not os.path.exists('/tmp/previewer'):
             os.makedirs('/tmp/previewer')
@@ -50,14 +53,21 @@ def cleanup_past_run(network_prefix, directory):
 
     client = docker.from_env()
     client.images.prune()
+    client.containers.prune()
+    client.networks.prune()
 
-    nginx_proxy = client.containers.get("nginx-proxy")
-    if nginx_proxy is None:
+    try:
+        nginx_proxy = client.containers.list(
+            filters={'name': 'nginx-proxy'}).pop(0)
+    except IndexError:
         return True
 
-    compose_network = client.networks.list([network_prefix + '_default'])[0]
-    if compose_network is None:
+    try:
+        compose_network = client.networks.list(
+            [network_prefix + '_default']).pop(0)
+    except IndexError:
         return True
+
     compose_network.disconnect(nginx_proxy)
 
 
@@ -69,11 +79,12 @@ def run_docker_compose(network_prefix, environment, working_directory):
     project.up(detached=True)
 
     client = docker.from_env()
-    client.images.prune()
     client.images.pull('jwilder/nginx-proxy')
 
-    nginx_proxy = client.containers.get("nginx-proxy")
-    if nginx_proxy is None:
+    try:
+        nginx_proxy = client.containers.list(
+            filters={'name': 'nginx-proxy'}).pop(0)
+    except IndexError:
         ports = {'80/tcp': '8111'}
         volumes = {
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'}}
@@ -83,11 +94,25 @@ def run_docker_compose(network_prefix, environment, working_directory):
                                             name="nginx-proxy",
                                             detach=True)
 
-    compose_network = client.networks.list([network_prefix + '_default'])[0]
-    if compose_network is None:
+    try:
+        compose_network = client.networks.list(
+            [network_prefix + '_default']).pop(0)
+    except IndexError:
         compose_network = client.networks.create(network_prefix + '_default')
-    compose_network.disconnect(nginx_proxy)
+
+    try:
+        compose_network.disconnect(nginx_proxy)
+    except APIError:
+        pass
     compose_network.connect(nginx_proxy)
+
+    # security lolz
+    if os.path.isfile(working_directory + '/previewer.sh'):
+        process = subprocess.Popen(
+            ['/bin/bash', working_directory + '/previewer.sh'], cwd=working_directory)
+        process.wait()
+
+    return True
 
 
 def branch(data):
@@ -108,9 +133,10 @@ def branch(data):
         branch_name)
 
     environment = {}
-    environment['KONG_VIRTUAL_HOST'] = safebranch_name + '_kong' + sub_domain
-    environment['KONG_ADMIN_VIRTUAL_HOST'] = safebranch_name + sub_domain
+    environment['VIRTUAL_HOST'] = safebranch_name + sub_domain
     run_docker_compose(safebranch_name, environment, working_directory)
+
+    print "done branch should be up"
 
     return True
 
@@ -136,9 +162,7 @@ def pull_request(data):
             working_directory,
             pr_number)
         environment = {}
-        environment['KONG_VIRTUAL_HOST'] = branch_name + \
-            '_pr_kong' + sub_domain
-        environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + \
+        environment['VIRTUAL_HOST'] = branch_name + \
             '_pr' + sub_domain
         run_docker_compose(pull_request_id, environment, working_directory)
 
@@ -149,7 +173,10 @@ def pull_request(data):
                          data['number'])
         issue.create_comment(
             'The preview environment: http://' +
-            environment['KONG_ADMIN_VIRTUAL_HOST'])
+            environment['VIRTUAL_HOST'])
+
+    print "pr should be done"
+
     return True
 
 
