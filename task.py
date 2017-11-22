@@ -31,7 +31,7 @@ def main():
                     branch_events = ['create', 'push', 'delete']
                     if data['event'] == 'pull_request':
                         pull_request(data)
-                    if data['event'] in branch_events:
+                    elif data['event'] in branch_events:
                         branch(data)
                     else:
                         print(
@@ -72,12 +72,6 @@ def cleanup_past_run(network_prefix, directory):
 
 
 def run_docker_compose(network_prefix, environment, working_directory):
-    os.environ = environment
-    project = get_project(working_directory)
-    project.pull()
-    project.build()
-    project.up(detached=True)
-
     client = docker.from_env()
     client.images.pull('jwilder/nginx-proxy')
 
@@ -105,6 +99,12 @@ def run_docker_compose(network_prefix, environment, working_directory):
     except APIError:
         pass
     compose_network.connect(nginx_proxy)
+    
+    os.environ = environment
+    project = get_project(working_directory)
+    project.pull()
+    project.build()
+    project.up(detached=True)
 
     # security lolz
     if os.path.isfile(working_directory + '/previewer.sh'):
