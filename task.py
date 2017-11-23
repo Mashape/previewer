@@ -7,6 +7,7 @@ import time
 import subprocess
 import docker
 from compose.cli.command import get_project
+from compose.config.errors import ComposeFileNotFound
 from docker.errors import APIError
 from git import Repo
 from github3 import login
@@ -46,9 +47,12 @@ def main():
 
 def cleanup_past_run(network_prefix, directory):
     if os.path.isdir(directory):
-        project = get_project(directory)
-        project.kill()
-        project.remove_stopped()
+        try:
+            project = get_project(directory)
+            project.kill()
+            project.remove_stopped()
+        except ComposeFileNotFound:
+            pass
         shutil.rmtree(directory)
 
     client = docker.from_env()
