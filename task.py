@@ -92,7 +92,7 @@ def run_docker_compose(network_prefix, environment, working_directory):
                                             name="nginx-proxy",
                                             detach=True)
 
-    if not os.path.isfile(working_directory + '/docker-compose.yml')
+    if not os.path.isfile(working_directory + '/docker-compose.yml'):
         print "No docker-compose file found"
         return True
 
