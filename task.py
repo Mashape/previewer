@@ -6,6 +6,7 @@ import sys
 import time
 import subprocess
 import docker
+from git.exc import GitCommandError
 from compose.cli.command import get_project
 from compose.config.errors import ComposeFileNotFound
 from docker.errors import APIError
@@ -56,9 +57,6 @@ def cleanup_past_run(network_prefix, directory):
         shutil.rmtree(directory)
 
     client = docker.from_env()
-    client.images.prune()
-    client.containers.prune()
-    client.networks.prune()
 
     try:
         nginx_proxy = client.containers.list(
@@ -73,6 +71,9 @@ def cleanup_past_run(network_prefix, directory):
         return True
 
     compose_network.disconnect(nginx_proxy)
+    client.images.prune()
+    client.containers.prune()
+    client.networks.prune()
 
 
 def run_docker_compose(network_prefix, environment, working_directory):
@@ -132,7 +133,7 @@ def branch(data):
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
 
     cleanup_past_run(safebranch_name, working_directory)
-    if data['event'] == 'delete':
+    if data['event'] == 'delete' or data['deleted']:
         return True
 
     checkout_branch(
@@ -203,7 +204,11 @@ def checkout_branch(ssh_url, working_directory, branch_name):
             ssh_url, working_directory, None, env={
                 'GIT_SSH_COMMAND': 'ssh -i /home/ubuntu/.ssh/id_rsa'})
     git = repo.git
-    git.checkout(branch_name)
+    try:
+        git.checkout(branch_name)
+        return True
+    except GitCommandError:
+        pass
 
 
 def checkout_pr_merge(ssh_url, working_directory, pr_number):
