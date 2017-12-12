@@ -64,13 +64,24 @@ def cleanup_past_run(network_prefix, directory):
     except IndexError:
         return True
 
+    compose_network = None
     try:
-        compose_network = client.networks.list(
-            [network_prefix + '_default']).pop(0)
+        for network in client.networks.list([network_prefix + '_default']):
+            if network.name == network_prefix + '_default':
+                compose_network = network
+                break
     except IndexError:
         return True
 
-    compose_network.disconnect(nginx_proxy)
+    if not compose_network:
+        return True
+
+    try:
+        print('disconnect ' + compose_network.name)
+        compose_network.disconnect(nginx_proxy)
+    except APIError:
+        pass
+
     client.images.prune()
     client.containers.prune()
     client.networks.prune()
@@ -97,16 +108,24 @@ def run_docker_compose(network_prefix, environment, working_directory):
         print "No docker-compose file found"
         return True
 
+    compose_network = None
     try:
-        compose_network = client.networks.list(
-            [network_prefix + '_default']).pop(0)
+        for network in client.networks.list([network_prefix + '_default']):
+            if network.name == network_prefix + '_default':
+                compose_network = network
+                break
     except IndexError:
+        pass
+
+    if not compose_network:
         compose_network = client.networks.create(network_prefix + '_default')
 
     try:
+        print('disconnect ' + compose_network.name)
         compose_network.disconnect(nginx_proxy)
     except APIError:
         pass
+    
     compose_network.connect(nginx_proxy)
     
     os.environ = environment
@@ -133,7 +152,7 @@ def branch(data):
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
 
     cleanup_past_run(safebranch_name, working_directory)
-    if data['event'] == 'delete' or data['deleted']:
+    if data['event'] == 'delete':
         return True
 
     checkout_branch(
