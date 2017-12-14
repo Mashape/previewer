@@ -148,7 +148,7 @@ def branch(data):
     safebranch_name = SAFE_REGEX_PATTERN.sub(
         '', str(data['ref']).split("/")[-1])
     working_directory = '/tmp/' + \
-        data['repository']['name'] + '/' + safebranch_name
+        data['repository']['name'] + '_' + safebranch_name
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
 
     cleanup_past_run(safebranch_name, working_directory)
@@ -176,7 +176,7 @@ def pull_request(data):
     pull_request_id = SAFE_REGEX_PATTERN.sub(
         '', str(data['pull_request']['id']))
     working_directory = '/tmp/' + \
-        data['repository']['name'] + '/' + pull_request_id
+        data['repository']['name'] + '_' + pull_request_id
     pr_number = data['number']
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     branch_name = SAFE_REGEX_PATTERN.sub(
