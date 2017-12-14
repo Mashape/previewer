@@ -150,8 +150,9 @@ def branch(data):
     working_directory = '/tmp/' + \
         data['repository']['name'] + '_' + safebranch_name
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+    network_prefix = str(data['repository']['name'] + '_' + safebranch_name).replace("_", "").replace("-", "")
 
-    cleanup_past_run(safebranch_name, working_directory)
+    cleanup_past_run(network_prefix, working_directory)
     if data['event'] == 'delete':
         return True
 
@@ -165,7 +166,7 @@ def branch(data):
     environment['KONG_VIRTUAL_HOST'] = safebranch_name + '_kong' + sub_domain
     environment['KONG_ADMIN_VIRTUAL_HOST'] = safebranch_name + sub_domain
     environment['VIRTUAL_HOST'] = safebranch_name + sub_domain
-    run_docker_compose(safebranch_name, environment, working_directory)
+    run_docker_compose(network_prefix, environment, working_directory)
 
     print "done branch should be up"
 
@@ -181,9 +182,10 @@ def pull_request(data):
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     branch_name = SAFE_REGEX_PATTERN.sub(
         '', str(data['pull_request']['head']['ref']))
+    network_prefix = str(data['repository']['name'] + '_' + branch_name).replace("_", "").replace("-", "")
 
     if data['action'] == 'closed' or data['action'] == 'synchronize':
-        cleanup_past_run(pull_request_id, working_directory)
+        cleanup_past_run(network_prefix, working_directory)
 
     if (data['action'] == 'opened' or
             data['action'] == 'reopened' or
@@ -198,7 +200,7 @@ def pull_request(data):
         environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + '_pr' + sub_domain
         environment['VIRTUAL_HOST'] = branch_name + \
             '_pr' + sub_domain
-        run_docker_compose(pull_request_id, environment, working_directory)
+        run_docker_compose(network_prefix, environment, working_directory)
 
     if data['action'] == 'opened' or data['action'] == 'reopened':
         gh = login(token=GITHUB_TOKEN)
