@@ -1,0 +1,119 @@
+{{ $CurrentContainer := where $ "ID" .Docker.CurrentContainerID | first }}
+
+{{ define "upstream" }}
+	{{ if .Address }}
+  upstream {{ .Container.Env.VIRTUAL_HOST }}-{{ .Address.Port }} {
+		# {{ .Container.Name }}
+		server {{ .Network.IP }}:{{ .Address.Port }};
+  }
+  
+  server {
+    server_name {{ .Container.Env.VIRTUAL_HOST }};
+    listen {{ .Address.Port }};
+    access_log /var/log/nginx/access-{{ .Container.Env.VIRTUAL_HOST }}.log vhost;
+    location / {
+      proxy_pass http://{{ .Container.Env.VIRTUAL_HOST }}-{{ .Address.Port }};
+    }
+  }
+	{{ end }}
+{{ end }}
+
+# If we receive X-Forwarded-Proto, pass it through; otherwise, pass along the
+# scheme used to connect to this server
+map $http_x_forwarded_proto $proxy_x_forwarded_proto {
+  default $http_x_forwarded_proto;
+  ''      $scheme;
+}
+
+# If we receive X-Forwarded-Port, pass it through; otherwise, pass along the
+# server port the client connected to
+map $http_x_forwarded_port $proxy_x_forwarded_port {
+  default $http_x_forwarded_port;
+  ''      $server_port;
+}
+
+# If we receive Upgrade, set Connection to "upgrade"; otherwise, delete any
+# Connection header that may have been passed to this server
+map $http_upgrade $proxy_connection {
+  default upgrade;
+  '' close;
+}
+
+# Apply fix for very long server names
+server_names_hash_bucket_size 128;
+
+# Default dhparam
+{{ if (exists "/etc/nginx/dhparam/dhparam.pem") }}
+ssl_dhparam /etc/nginx/dhparam/dhparam.pem;
+{{ end }}
+
+# Set appropriate X-Forwarded-Ssl header
+map $scheme $proxy_x_forwarded_ssl {
+  default off;
+  https on;
+}
+
+gzip_types text/plain text/css application/javascript application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+
+log_format vhost '$host $remote_addr - $remote_user [$time_local] '
+                 '"$request" $status $body_bytes_sent '
+                 '"$http_referer" "$http_user_agent"';
+
+access_log off;
+
+{{ if $.Env.RESOLVERS }}
+resolver {{ $.Env.RESOLVERS }};
+{{ end }}
+
+{{ if (exists "/etc/nginx/proxy.conf") }}
+include /etc/nginx/proxy.conf;
+{{ else }}
+# HTTP 1.1 support
+proxy_http_version 1.1;
+proxy_buffering off;
+proxy_set_header Host $http_host;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $proxy_connection;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+proxy_set_header X-Forwarded-Ssl $proxy_x_forwarded_ssl;
+proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
+
+# Mitigate httpoxy attack (see README for details)
+proxy_set_header Proxy "";
+{{ end }}
+
+{{ range $host, $containers := groupByMulti $ "Env.VIRTUAL_HOST" "," }}
+
+{{ $host := trim $host }}
+{{ $is_regexp := hasPrefix "~" $host }}
+{{ $upstream_name := when $is_regexp (sha1 $host) $host }}
+
+{{ $default_host := or ($.Env.DEFAULT_HOST) "" }}
+{{ $default_server := index (dict $host "" $default_host "default_server") $host }}
+
+{{/* Get the VIRTUAL_PROTO defined by containers w/ the same vhost, falling back to "http" */}}
+{{ $proto := trim (or (first (groupByKeys $containers "Env.VIRTUAL_PROTO")) "http") }}
+
+{{/* Get the NETWORK_ACCESS defined by containers w/ the same vhost, falling back to "external" */}}
+{{ $network_tag := or (first (groupByKeys $containers "Env.NETWORK_ACCESS")) "external" }}
+
+{{/* Get the NETWORK_ACCESS defined by containers w/ the same vhost, falling back to "external" */}}
+{{ $network_tag := or (first (groupByKeys $containers "Env.NETWORK_ACCESS")) "external" }}
+
+{{ range $container := $containers }}
+	{{ $addrLen := len $container.Addresses }}
+
+	{{ range $knownNetwork := $CurrentContainer.Networks }}
+		{{ range $containerNetwork := $container.Networks }}
+			{{ if (and (ne $containerNetwork.Name "ingress") (or (eq $knownNetwork.Name $containerNetwork.Name) (eq $knownNetwork.Name "host"))) }}
+			  {{ range $address := $container.Addresses }}
+					{{ template "upstream" (dict "Container" $container "Address" $address "Network" $containerNetwork) }}
+				{{ end }}
+			{{ end }}
+		{{ end }}
+	{{ end }}
+{{ end }}
+
+{{ end }}

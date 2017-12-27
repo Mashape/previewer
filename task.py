@@ -95,12 +95,13 @@ def run_docker_compose(network_prefix, environment, working_directory):
         nginx_proxy = client.containers.list(
             filters={'name': 'nginx-proxy'}).pop(0)
     except IndexError:
-        ports = {'80/tcp': '8111'}
         volumes = {
-            '/var/run/docker.sock': {'bind': '/tmp/docker.sock', 'mode': 'ro'}}
+            '/var/run/docker.sock': {'bind': '/tmp/docker.sock', 'mode': 'ro'},
+            os.getcwd(): {'bind': '/app/'}
+        }
         nginx_proxy = client.containers.run('jwilder/nginx-proxy',
                                             volumes=volumes,
-                                            ports=ports,
+                                            network_mode="host",
                                             name="nginx-proxy",
                                             detach=True)
 
@@ -162,9 +163,6 @@ def branch(data):
         branch_name)
 
     environment = {}
-    # TODO backwards compatibility fix. Delete at a later date
-    environment['KONG_VIRTUAL_HOST'] = safebranch_name + '_kong' + sub_domain
-    environment['KONG_ADMIN_VIRTUAL_HOST'] = safebranch_name + sub_domain
     environment['VIRTUAL_HOST'] = safebranch_name + sub_domain
     run_docker_compose(network_prefix, environment, working_directory)
 
@@ -195,9 +193,6 @@ def pull_request(data):
             working_directory,
             pr_number)
         environment = {}
-        # TODO backwards compatibility fix. Delete at a later date
-        environment['KONG_VIRTUAL_HOST'] = branch_name + '_pr_kong' + sub_domain
-        environment['KONG_ADMIN_VIRTUAL_HOST'] = branch_name + '_pr' + sub_domain
         environment['VIRTUAL_HOST'] = branch_name + \
             '_pr' + sub_domain
         run_docker_compose(network_prefix, environment, working_directory)
