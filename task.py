@@ -95,13 +95,19 @@ def run_docker_compose(network_prefix, environment, working_directory):
         nginx_proxy = client.containers.list(
             filters={'name': 'nginx-proxy'}).pop(0)
     except IndexError:
+        ports = {
+          '8000/tcp': '8000',
+          '8001/tcp': '8001',
+          '8002/tcp': '8002',
+          '8003/tcp': '8003',
+        }
         volumes = {
             '/var/run/docker.sock': {'bind': '/tmp/docker.sock', 'mode': 'ro'},
-            os.getcwd(): {'bind': '/app/'}
+            os.getcwd() + '/nginx-proxy': {'bind': '/app/'}
         }
         nginx_proxy = client.containers.run('jwilder/nginx-proxy',
+                                            ports=ports,
                                             volumes=volumes,
-                                            network_mode="host",
                                             name="nginx-proxy",
                                             detach=True)
 
@@ -118,14 +124,14 @@ def run_docker_compose(network_prefix, environment, working_directory):
     except IndexError:
         pass
 
-    if not compose_network:
+    if compose_network:
+        try:
+            print('disconnect ' + compose_network.name)
+            compose_network.disconnect(nginx_proxy)
+        except APIError:
+            pass
+    else:
         compose_network = client.networks.create(network_prefix + '_default')
-
-    try:
-        print('disconnect ' + compose_network.name)
-        compose_network.disconnect(nginx_proxy)
-    except APIError:
-        pass
     
     compose_network.connect(nginx_proxy)
     
@@ -135,17 +141,14 @@ def run_docker_compose(network_prefix, environment, working_directory):
     project.build()
     project.up(detached=True)
 
-    # security lolz
-    if os.path.isfile(working_directory + '/previewer.sh'):
-        process = subprocess.Popen(
-            ['/bin/bash', working_directory + '/previewer.sh'], cwd=working_directory)
-        process.wait()
-
     return True
 
 
 def branch(data):
-    branch_name = str(data['ref']).split("/", 2)[-1]
+    branch_name = data['ref']
+    if data['event'] == 'push':
+        branch_name = str(data['ref']).split("/", 2)[-1]
+
     safebranch_name = SAFE_REGEX_PATTERN.sub(
         '', str(data['ref']).split("/")[-1])
     working_directory = '/tmp/' + \
