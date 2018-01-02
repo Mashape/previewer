@@ -1,10 +1,10 @@
 {{ $CurrentContainer := where $ "ID" .Docker.CurrentContainerID | first }}
 
 {{ define "upstream" }}
-	{{ if .Address }}
+  {{ if .Address }}
   upstream {{ .Container.Env.VIRTUAL_HOST }}-{{ .Address.Port }} {
-		# {{ .Container.Name }}
-		server {{ .Network.IP }}:{{ .Address.Port }};
+    # {{ .Container.Name }}
+    server {{ .Network.IP }}:{{ .Address.Port }};
   }
   
   server {
@@ -15,7 +15,14 @@
       proxy_pass http://{{ .Container.Env.VIRTUAL_HOST }}-{{ .Address.Port }};
     }
   }
-	{{ end }}
+  
+  server {
+    server_name _; # This is just an invalid value which will never trigger on a real hostname.
+    listen {{ .Address.Port }};
+    access_log /var/log/nginx/access.log vhost;
+    return 503;
+  }
+  {{ end }}
 {{ end }}
 
 # If we receive X-Forwarded-Proto, pass it through; otherwise, pass along the
@@ -93,18 +100,7 @@ proxy_set_header Proxy "";
 {{ $default_host := or ($.Env.DEFAULT_HOST) "" }}
 {{ $default_server := index (dict $host "" $default_host "default_server") $host }}
 
-{{/* Get the VIRTUAL_PROTO defined by containers w/ the same vhost, falling back to "http" */}}
-{{ $proto := trim (or (first (groupByKeys $containers "Env.VIRTUAL_PROTO")) "http") }}
-
-{{/* Get the NETWORK_ACCESS defined by containers w/ the same vhost, falling back to "external" */}}
-{{ $network_tag := or (first (groupByKeys $containers "Env.NETWORK_ACCESS")) "external" }}
-
-{{/* Get the NETWORK_ACCESS defined by containers w/ the same vhost, falling back to "external" */}}
-{{ $network_tag := or (first (groupByKeys $containers "Env.NETWORK_ACCESS")) "external" }}
-
 {{ range $container := $containers }}
-	{{ $addrLen := len $container.Addresses }}
-
 	{{ range $knownNetwork := $CurrentContainer.Networks }}
 		{{ range $containerNetwork := $container.Networks }}
 			{{ if (and (ne $containerNetwork.Name "ingress") (or (eq $knownNetwork.Name $containerNetwork.Name) (eq $knownNetwork.Name "host"))) }}
