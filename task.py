@@ -15,6 +15,7 @@ from github3 import login
 
 SAFE_REGEX_PATTERN = re.compile('[\W_]+')
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+DOMAIN = os.environ['DOMAIN']
 
 
 def main():
@@ -153,7 +154,7 @@ def branch(data):
         '', str(data['ref']).split("/")[-1])
     working_directory = '/tmp/' + \
         data['repository']['name'] + '_' + safebranch_name
-    sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+    sub_domain = '.' + data['repository']['name'] + DOMAIN
     network_prefix = str(data['repository']['name'] + '_' + safebranch_name).replace("_", "").replace("-", "")
 
     cleanup_past_run(network_prefix, working_directory)
@@ -180,7 +181,7 @@ def pull_request(data):
     working_directory = '/tmp/' + \
         data['repository']['name'] + '_' + pull_request_id
     pr_number = data['number']
-    sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
+    sub_domain = '.' + data['repository']['name'] + DOMAIN
     branch_name = SAFE_REGEX_PATTERN.sub(
         '', str(data['pull_request']['head']['ref']))
     network_prefix = str(data['repository']['name'] + pull_request_id).replace("_", "").replace("-", "")
