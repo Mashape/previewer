@@ -183,7 +183,7 @@ def pull_request(data):
     sub_domain = '.' + data['repository']['name'] + '.previewer.mashape.com'
     branch_name = SAFE_REGEX_PATTERN.sub(
         '', str(data['pull_request']['head']['ref']))
-    network_prefix = str(data['repository']['name'] + '_' + branch_name).replace("_", "").replace("-", "")
+    network_prefix = str(data['repository']['name'] + pull_request_id).replace("_", "").replace("-", "")
 
     if data['action'] == 'closed' or data['action'] == 'synchronize':
         cleanup_past_run(network_prefix, working_directory)
