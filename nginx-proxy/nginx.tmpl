@@ -8,19 +8,19 @@
   }
   
   server {
+    server_name _; # This is just an invalid value which will never trigger on a real hostname.
+    listen {{ .Address.Port }};
+    access_log /var/log/nginx/access.log vhost;
+    return 503;
+  }
+  
+  server {
     server_name {{ .Container.Env.VIRTUAL_HOST }};
     listen {{ .Address.Port }};
     access_log /var/log/nginx/access-{{ .Container.Env.VIRTUAL_HOST }}.log vhost;
     location / {
       proxy_pass http://{{ .Container.Env.VIRTUAL_HOST }}-{{ .Address.Port }};
     }
-  }
-  
-  server {
-    server_name _; # This is just an invalid value which will never trigger on a real hostname.
-    listen {{ .Address.Port }};
-    access_log /var/log/nginx/access.log vhost;
-    return 503;
   }
   {{ end }}
 {{ end }}
