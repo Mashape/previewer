@@ -7,12 +7,12 @@
     server {{ .Network.IP }}:{{ .Address.Port }};
   }
   
-  server {
-    server_name _; # This is just an invalid value which will never trigger on a real hostname.
-    listen {{ .Address.Port }};
-    access_log /var/log/nginx/access.log vhost;
-    return 503;
-  }
+#  server {
+#    server_name _; # This is just an invalid value which will never trigger on a real hostname.
+#    listen {{ .Address.Port }};
+#    access_log /var/log/nginx/access.log vhost;
+#    return 503;
+#  }
   
   server {
     server_name {{ .Container.Env.VIRTUAL_HOST }};
@@ -89,6 +89,18 @@ proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
 
 # Mitigate httpoxy attack (see README for details)
 proxy_set_header Proxy "";
+
+server {
+  server_name _; # This is just an invalid value which will never trigger on a real hostname.
+  listen 8000;
+  listen 8001;
+  listen 8002;
+  listen 8003;
+  listen 8004;
+  access_log /var/log/nginx/access.log vhost;
+  return 503;
+}
+
 {{ end }}
 
 {{ range $host, $containers := groupByMulti $ "Env.VIRTUAL_HOST" "," }}

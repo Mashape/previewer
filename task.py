@@ -6,6 +6,7 @@ import sys
 import time
 import subprocess
 import docker
+import yaml
 from git.exc import GitCommandError
 from compose.cli.command import get_project
 from compose.config.errors import ComposeFileNotFound
@@ -206,9 +207,14 @@ def pull_request(data):
         issue = gh.issue(data['organization']['login'],
                          data['pull_request']['head']['repo']['name'],
                          data['number'])
+        
+        docker_yaml = {'x-previewer-url' : ''}
+        with io.open(working_directory + '/docker-compose.yml') as stream:
+            docker_yaml = yaml.load(stream)
+        
         issue.create_comment(
             'The preview environment: http://' +
-            environment['VIRTUAL_HOST'])
+            environment['VIRTUAL_HOST'] + docker_yaml['x-previewer-url'])
 
     print "pr should be done"
 

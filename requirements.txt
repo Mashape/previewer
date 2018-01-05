@@ -10,8 +10,8 @@ chardet==3.0.4
 click==6.7
 configparser==3.5.0
 cryptography==2.0.3
-docker==2.5.1
-docker-compose==1.16.1
+docker==2.7.0
+docker-compose==1.18.0
 docker-pycreds==0.2.1
 dockerpty==0.4.1
 docopt==0.6.2
@@ -52,4 +52,5 @@ urllib3==1.22
 websocket-client==0.44.0
 Werkzeug==0.12.2
 wrapt==1.10.11
+PyYAML==3.12
 
