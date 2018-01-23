@@ -141,7 +141,7 @@ def run_docker_compose(network_prefix, environment, working_directory):
     os.environ = environment
     project = get_project(working_directory)
     project.pull()
-    project.build()
+    project.build(pull=True)
     project.up(detached=True)
 
     return True
