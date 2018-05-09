@@ -15,7 +15,6 @@ APP.config['VALIDATE_IP'] = True
 APP.config['VALIDATE_SIGNATURE'] = False
 APP.config['GITHUB_WEBHOOKS_KEY'] = os.environ['GITHUB_WEBHOOKS_KEY']
 
-
 @APP.route("/")
 def hello():
     return "Hello World!"
@@ -148,3 +147,6 @@ def check_signature(signature, key, data):
         signature = signature.encode()
 
     return werkzeug.security.safe_str_cmp(digest, signature)
+
+if __name__ == "__main__":
+    APP.run(host='0.0.0.0',threaded=True)
