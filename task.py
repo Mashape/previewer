@@ -170,7 +170,7 @@ def branch(data):
 
     environment = {}
     environment['VIRTUAL_HOST'] = safebranch_name + sub_domain
-    environment['NPM_TOKEN'] = os.environ('NPM_TOKEN')
+    environment['NPM_TOKEN'] =os.environ['NPM_TOKEN']
     run_docker_compose(network_prefix, environment, working_directory)
 
     print "done branch should be up"
