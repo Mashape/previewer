@@ -40,7 +40,7 @@ PyGithub==1.35
 PyJWT==1.5.3
 pylint==1.7.4
 pyOpenSSL==17.2.0
-PyYAML==3.12
+PyYAML==5.4
 requests==2.11.1
 singledispatch==3.4.0.3
 six==1.10.0
@@ -52,5 +52,5 @@ urllib3==1.22
 websocket-client==0.44.0
 Werkzeug==0.12.2
 wrapt==1.10.11
-PyYAML==3.12
+PyYAML==5.4
 
